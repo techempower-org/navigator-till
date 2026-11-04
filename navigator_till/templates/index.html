@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="log">
+{% for who, text in state.log %}<div class="msg {{ who }}"><span class="who">{{ 'you' if who == 'you' else 'the desk' }}</span>{{ text }}</div>{% endfor %}
+{% if not state.log %}<div class="msg till"><span class="who">the desk</span>Hi. I can price a refurbished laptop or desktop for your household, or take a donation that covers one for a neighbor. For example: "I need a laptop, there are 3 of us and I'm on CalFresh" or "I want to cover a laptop for someone, $100".</div>{% endif %}
+</div>
+{% if confirm %}
+<form class="yes" method="post" action="/confirm">
+  <input type="hidden" name="what" value="{{ confirm }}">
+  <p><strong>Ready?</strong> {% if confirm == 'device' %}{% if state.quote.price == 0 %}No charge. YES writes your pickup note.{% else %}YES sends a PayPal invoice for ${{ state.quote.price }} to {{ state.email or 'your email' }}.{% endif %}{% else %}YES opens PayPal checkout for ${{ state.donation }}.{% endif %} Nothing happens until you press it.</p>
+  <button type="submit">YES, go ahead</button> <button class="quiet" type="submit" form="reset">No, start over</button>
+</form>
+{% endif %}
+<form class="chat" method="post" action="/chat">
+  <textarea name="message" rows="2" placeholder="Type here…" required></textarea>
+  <input name="email" type="email" value="{{ state.email or '' }}" placeholder="Email for the invoice or receipt (optional)">
+  <button type="submit">Send</button>
+</form>
+<form id="reset" method="post" action="/reset"></form>
+{% endblock %}

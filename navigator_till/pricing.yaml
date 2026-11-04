@@ -1,0 +1,43 @@
+# Navigator Till sliding scale. The org edits this file; the code only does the arithmetic.
+# Example numbers from TechEMPOWER's 2026 refurbished-device offer sheet (desktop $180, laptop $200/$280).
+# Income bands are percent of the 2026 federal poverty guideline for the household size; the band's
+# "pay" is the share of list price the client pays. Never computed by a language model.
+
+currency: USD
+
+devices:
+  laptop:
+    label: Refurbished laptop
+    list: 200
+  laptop-plus:
+    label: Refurbished laptop (newer, more memory)
+    list: 280
+  desktop:
+    label: Refurbished desktop with monitor
+    list: 180
+  ups:
+    label: Battery backup (as-is)
+    list: 70
+
+# 2026 HHS poverty guideline, 48 states, annual dollars (first person, then each additional).
+fpl:
+  first: 15960
+  each_additional: 5680
+
+# Bands: upper bound as percent of FPL (inclusive) and the share of list price the client pays.
+bands:
+  - { up_to_pct: 100, pay: 0.00, label: "at or below the poverty line" }
+  - { up_to_pct: 150, pay: 0.25, label: "up to 150% of the poverty line" }
+  - { up_to_pct: 200, pay: 0.50, label: "up to 200% of the poverty line" }
+  - { up_to_pct: 300, pay: 0.75, label: "up to 300% of the poverty line" }
+  - { up_to_pct: null, pay: 1.00, label: "above 300% of the poverty line" }
+
+# Anyone enrolled in one of these programs is placed in the first band without an income question.
+categorical:
+  - calfresh
+  - medi-cal
+  - ssi
+  - lifeline
+  - wic
+  - section 8
+  - free lunch

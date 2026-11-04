@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Navigator Till{% endblock %}</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231f6f5f'/%3E%3Cpath d='M8 20h16M8 14h10' stroke='%23fff4d6' stroke-width='3' stroke-linecap='round'/%3E%3Ccircle cx='23' cy='13' r='2.5' fill='%23f2b134'/%3E%3C/svg%3E">
+<style>
+:root{--bg:#fbf7ef;--ink:#1d1b16;--muted:#5d574b;--card:#ffffff;--line:#e3dccb;--accent:#1f6f5f;--accent-ink:#fff8e8;--warn:#b2541a;--you:#eef3ef;--till:#fff}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#14161a;--ink:#f1ede3;--muted:#a9a394;--card:#1d2026;--line:#2d313a;--accent:#5fc3a8;--accent-ink:#0f1a16;--warn:#f0a35e;--you:#232830;--till:#1d2026}}
+:root[data-theme="dark"]{--bg:#14161a;--ink:#f1ede3;--muted:#a9a394;--card:#1d2026;--line:#2d313a;--accent:#5fc3a8;--accent-ink:#0f1a16;--warn:#f0a35e;--you:#232830;--till:#1d2026}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.5 "Atkinson Hyperlegible",system-ui,sans-serif}
+main{max-width:46rem;margin:0 auto;padding:1.25rem 1rem 3rem}header{display:flex;align-items:baseline;gap:.75rem;flex-wrap:wrap}
+h1{font-size:1.5rem;margin:.2rem 0}.sub{color:var(--muted);margin:0 0 1rem}.pill{font-size:.8rem;border:1px solid var(--line);border-radius:999px;padding:.1rem .6rem;color:var(--muted)}
+.log{display:flex;flex-direction:column;gap:.6rem;margin:1rem 0}.msg{padding:.7rem .9rem;border-radius:.8rem;border:1px solid var(--line);white-space:pre-wrap;max-width:92%}
+.msg.you{background:var(--you);align-self:flex-end}.msg.till{background:var(--till)}.who{font-size:.75rem;color:var(--muted);display:block;margin-bottom:.2rem;letter-spacing:.04em;text-transform:uppercase}
+form.chat{display:grid;gap:.5rem}textarea,input{font:inherit;padding:.6rem .7rem;border:1px solid var(--line);border-radius:.6rem;background:var(--card);color:var(--ink);width:100%}
+button{font:inherit;font-weight:600;padding:.6rem 1rem;border-radius:.6rem;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);cursor:pointer}
+button.quiet{background:transparent;color:var(--ink);border-color:var(--line)}.yes{border:2px solid var(--accent);border-radius:.8rem;padding:.9rem;margin:1rem 0;background:var(--card)}
+.card{border:1px solid var(--line);border-radius:.8rem;padding:1rem;background:var(--card);margin:1rem 0}dl{display:grid;grid-template-columns:max-content 1fr;gap:.3rem 1rem;margin:0}dt{color:var(--muted)}dd{margin:0;font-variant-numeric:tabular-nums}
+a{color:var(--accent)}.muted{color:var(--muted)}.warn{color:var(--warn)}footer{margin-top:2rem;font-size:.85rem;color:var(--muted)}
+button:focus-visible,textarea:focus-visible,input:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+</style>
+</head>
+<body>
+<main>
+<header><h1>Navigator Till</h1><span class="pill">{{ org }}</span>{% if mock %}<span class="pill">mock PayPal</span>{% else %}<span class="pill">PayPal sandbox</span>{% endif %}</header>
+<p class="sub">Tell the desk what you need. The price comes from the sliding scale, the words come from the agent, and nothing is charged until you press YES.</p>
+{% block body %}{% endblock %}
+<footer>Prices follow {{ org }}'s sliding scale (editable YAML); the agent explains and never calculates. <a href="https://github.com/techempower-org/navigator-till">Source (MIT)</a>.</footer>
+</main>
+</body>
+</html>

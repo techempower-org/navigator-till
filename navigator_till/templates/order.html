@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Donation · Navigator Till{% endblock %}
+{% block body %}
+<div class="card">
+  <h2>Donation order created</h2>
+  <dl><dt>Order</dt><dd>{{ order.id }}</dd><dt>Amount</dt><dd>${{ order.amount }} {{ order.currency }}</dd><dt>Status</dt><dd>{{ order.status }}</dd><dt>Approve at</dt><dd><a href="{{ order.approve_link }}">{{ order.approve_link }}</a></dd></dl>
+  <p class="muted">Events: {{ order.events | join(' → ') }}</p>
+</div>
+{% if mock %}
+<form method="post" action="/webhook/paypal" class="yes"><p><strong>Mock donor:</strong> in the sandbox the donor approves on PayPal's page; press this to play the donor, then we capture.</p>
+<input type="hidden" name="event_type" value="CHECKOUT.ORDER.APPROVED"><input type="hidden" name="resource_id" value="{{ order.id }}"><button type="submit">I approved the order</button></form>
+<p><a href="/receipt">See the thank-you after approving</a></p>
+{% endif %}
+<p><a href="/">Back to the desk</a></p>
+{% endblock %}
