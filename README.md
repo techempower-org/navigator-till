@@ -14,7 +14,7 @@ Built by [TechEMPOWER](https://techempower.org), a Nevada County, California 501
 
 ```bash
 make setup      # python3 -m venv .venv && pip install -e ".[dev,ai]"
-make test       # 39 tests, offline
+make test       # 41 tests, offline
 make demo       # http://127.0.0.1:8077 in mock mode
 ```
 
@@ -43,7 +43,7 @@ Copy `.env.example` to `.env`, set `MOCK=0`, `PAYPAL_CLIENT_ID`, `PAYPAL_SECRET`
 
 ### The navigator view: `/desk`
 
-`GET /desk` is the desk's own page: quotes today, unpaid invoices, paid pickups (including no-charge pickup notes) and donations captured, read from the session store. It shows emails and incomes, so set `NT_DESK_TOKEN` and open `/desk?token=…` once; the token is swapped for a cookie (an HMAC, not the secret) and the browser is redirected to the clean URL. In sandbox mode the page refuses to open without a token.
+`GET /desk` is the desk's own page: quotes today, unpaid invoices, paid pickups (including no-charge pickup notes) and donations captured, read from the session store. It shows emails and incomes, so set `NT_DESK_TOKEN` and open `/desk?token=…` once; the token is swapped for a cookie (an HMAC, not the secret) and the browser is redirected to the clean URL. In sandbox mode the page refuses to open without a token. In the mock demo (`MOCK=1`) with no token it lists every stored session, so run the demo only on a box you own.
 
 ### Spanish
 

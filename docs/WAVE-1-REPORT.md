@@ -52,3 +52,10 @@ PR URL: none yet; the brief says the lead opens it from this branch.
 - **No cross-model (xreview) check**: the brief confines me to this box with no outbound calls. The webhook and desk-auth code are security-relevant, so the lead may want one before merge.
 - **Desk "today"** uses the server's local date; the timestamps are stored with the server's zone offset. Fine for one desk, noted in case the server runs in UTC.
 - Timestamps were not run through a timezone-change or midnight test.
+
+## Lead's gate pass (money-e9, familiar, Wed 2026-11-04 08:3x)
+
+- The build ran headless on familiar (wakizashi was offline), fresh clone from main 1ab6f0f, 11 commits.
+- Gates re-run: 39 → **41 passed** after the fixes below; red perturbation (SUCCESS check broken → 4 failed, restored → green); gitleaks clean; no file over 400 lines.
+- Cross-model review (Azure AI Foundry, gpt-6.1-sol-2026-09-29, read-only diff of paypal.py + app.py): MERGE-AFTER-FIXES. Fixed in 1b3afd1: a capture must answer COMPLETED (a PENDING capture settles nothing), and the invoice freezes the quote it billed (a later chat line cannot re-quote; an amount mismatch stops settlement). Accepted as-is: mock-mode /desk lists every stored session when no token is set (local demo only).
+- Not verified by the lead either: a real PayPal sandbox call (needs the sandbox app, JP's card f7c09f0eb7a3); read-aloud and print in a browser; the Spanish wording by a native speaker.
