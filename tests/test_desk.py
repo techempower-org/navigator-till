@@ -61,5 +61,22 @@ def test_desk_token_gate(fresh, monkeypatch):
     c = TestClient(app)
     assert c.get("/desk").status_code == 403
     assert c.get("/desk?token=wrong").status_code == 403
-    assert c.get("/desk?token=s3cret").status_code == 200
-    assert c.get("/desk").status_code == 200                           # the cookie keeps it
+    r = c.get("/desk?token=s3cret", follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/desk"      # the secret leaves the URL
+    assert "s3cret" not in c.cookies.get("nt_desk")                       # a digest, not the token
+    r = c.get("/desk")
+    assert r.status_code == 200 and r.headers["cache-control"] == "no-store"   # the cookie keeps it
+    forged = TestClient(app, cookies={"nt_desk": "s3cret"})
+    assert forged.get("/desk").status_code == 403
+
+
+def test_desk_fails_closed_in_sandbox_mode_without_a_token(fresh, monkeypatch):
+    monkeypatch.setenv("MOCK", "0")
+    assert TestClient(app).get("/desk").status_code == 403
+    monkeypatch.setenv("NT_DESK_TOKEN", "s3cret")
+    c = TestClient(app, base_url="https://testserver")                     # the cookie is Secure there
+    c.get("/desk?token=s3cret")
+    assert c.get("/desk").status_code == 200
+    plain = TestClient(app)
+    plain.get("/desk?token=s3cret")
+    assert plain.get("/desk").status_code == 403                           # Secure cookie never rides plain http

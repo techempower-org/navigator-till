@@ -7,6 +7,7 @@ No money step happens without the YES button; the agent only ever proposes.
 """
 from __future__ import annotations
 
+import hmac
 import json
 import os
 import secrets
@@ -201,14 +202,29 @@ def receipt(request: Request):
     return RedirectResponse("/", status_code=303)
 
 
+def _desk_cookie(token: str) -> str:
+    return hmac.new(token.encode(), b"navigator-till desk", "sha256").hexdigest()
+
+
 @app.get("/desk", response_class=HTMLResponse)
 def desk(request: Request):
-    """The navigator's view: today's quotes, unpaid invoices, paid pickups, donations captured.
-    Shows emails and incomes, so set NT_DESK_TOKEN and open /desk?token=... once (a cookie keeps it)."""
+    """The navigator's view: quotes today, unpaid invoices, paid pickups, donations captured.
+    It shows emails and incomes, so: open without a token only in the mock demo; in sandbox mode
+    NT_DESK_TOKEN is required (403 when unset). Visit /desk?token=... once: the token is swapped for
+    a cookie holding its HMAC and the browser is redirected so the secret leaves the URL."""
     token = os.environ.get("NT_DESK_TOKEN", "")
-    given = request.query_params.get("token") or request.cookies.get("nt_desk", "")
-    if token and not secrets.compare_digest(given, token):
-        raise HTTPException(403, "desk token required")
+    if not token and not paypal.is_mock():
+        raise HTTPException(403, "set NT_DESK_TOKEN to open the desk in sandbox mode")
+    if token:
+        given = request.query_params.get("token")
+        if given is not None:
+            if not secrets.compare_digest(given, token):
+                raise HTTPException(403, "desk token required")
+            resp = RedirectResponse("/desk", status_code=303)
+            resp.set_cookie("nt_desk", _desk_cookie(token), httponly=True, samesite="lax", secure=not paypal.is_mock(), max_age=12 * 3600)
+            return resp
+        if not secrets.compare_digest(request.cookies.get("nt_desk", ""), _desk_cookie(token)):
+            raise HTTPException(403, "desk token required")
     rows = [st for _, st in store.items()]
     today = date.today().isoformat()
     ctx = {"today": today,
@@ -218,8 +234,7 @@ def desk(request: Request):
            "donations": [st for st in rows if st.get("thanks")]}
     sid = _sid(request)
     resp = _render(request, "desk.html", sid, _state(sid), **ctx)
-    if token:
-        resp.set_cookie("nt_desk", token, httponly=True, samesite="lax")
+    resp.headers["Cache-Control"] = "no-store"
     return resp
 
 
