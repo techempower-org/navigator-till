@@ -18,7 +18,7 @@ from .pricing import Quote
 
 DEFAULT_PATH = "navigator-till.db"
 RETENTION_DAYS = int(os.environ.get("NT_DB_RETENTION_DAYS", "30"))
-KINDS = {"quote": Quote, "request": Request}          # state key -> dataclass to rebuild
+KINDS = {"quote": Quote, "invoiced_quote": Quote, "request": Request}   # state key -> dataclass to rebuild
 
 
 def encode(state: dict) -> str:

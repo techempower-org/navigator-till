@@ -92,6 +92,9 @@ def chat(request: Request, message: str = Form(...), email: str = Form("")):
     except (ValueError, KeyError) as e:
         st["log"].append(("till", T("cannot_price", error=e)))
         return _render(request, "index.html", sid, st)
+    if st.get("invoice_id") and not st.get("receipt"):
+        st["log"].append(("till", T("invoice_open", id=st["invoice_id"], amount=st["invoice_amount"])))
+        return _render(request, "index.html", sid, st)
     st["quote"] = q; st["quoted_at"] = _now()
     st["log"].append(("till", agent.explain(q, lang)))
     st["log"].append(("till", T("free_yes") if q.price == 0 else T("invoice_yes", price=q.price)))
@@ -113,6 +116,7 @@ def confirm(request: Request, what: str = Form(...)):
                                 currency=CURRENCY, memo=f"{ORG}: {q.device_label} (sliding scale, {q.band_label})")
         pp.send_invoice(inv.id)
         st["invoice_id"] = inv.id; st["invoice_amount"] = inv.amount; st["invoiced_at"] = _now()
+        st["invoiced_quote"] = q                                  # frozen copy: later chat lines cannot change what was billed
         st["log"].append(("till", T("invoice_sent_msg", id=inv.id, amount=inv.amount)))
         return _render(request, "invoice.html", sid, st, invoice=inv, quote=q)
     if what == "donation":
@@ -167,7 +171,9 @@ def _settle(request: Request, event_type: str, resource_id: str, body: bytes, is
             return {"ok": False, "status": inv.status}
         for sid2, st in store.find("invoice_id", inv.id):
             if not st.get("receipt"):
-                st["receipt"] = agent.receipt(st["quote"], inv.amount, inv.id, st.get("lang", "en"))
+                if st.get("invoice_amount") not in (None, inv.amount):   # the invoice is the contract, not the chat
+                    return {"ok": False, "status": "AMOUNT_MISMATCH", "invoice": inv.id}
+                st["receipt"] = agent.receipt(st.get("invoiced_quote") or st["quote"], inv.amount, inv.id, st.get("lang", "en"))
                 st["paid"] = inv.amount; st["paid_at"] = _now()
                 st["log"].append(("till", st["receipt"]))
                 store.put(sid2, st)
@@ -181,6 +187,8 @@ def _settle(request: Request, event_type: str, resource_id: str, body: bytes, is
             o = pp.capture_order(resource_id)              # PayPal refuses unless the payer approved
         except (ValueError, httpx.HTTPStatusError) as e:
             raise HTTPException(409, f"order not capturable: {e}") from e
+        if o.status != "COMPLETED":                        # an approved-but-not-captured order is not a donation
+            return {"ok": False, "status": o.status}
         for sid2, st in store.find("order_id", o.id):
             if not st.get("thanks"):
                 st["thanks"] = i18n.t(st.get("lang", "en"), "captured_msg", amount=o.amount, id=o.id, gaps=o.amount // 50)

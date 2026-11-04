@@ -209,7 +209,7 @@ class SandboxPayPal:
             o = Order(id=order_id, status="CREATED", amount=_dollars(cap.get("value")), currency=cap.get("currency_code", "USD"),
                       note="", approve_link="", events=["read (sandbox)"])
             self.orders[order_id] = o
-        o.status = j.get("status", "COMPLETED"); o.events.append("captured (sandbox)")
+        o.status = j.get("status", "UNKNOWN"); o.events.append(f"capture answered {o.status} (sandbox)")
         return o
 
 

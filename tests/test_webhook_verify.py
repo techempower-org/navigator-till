@@ -139,3 +139,22 @@ def test_sandbox_capture_after_restart_rebuilds_order(monkeypatch, sandbox):
     assert r.status_code == 200 and r.json()["status"] == "COMPLETED"
     assert appmod.store.get("donor")["thanks"].startswith("Captured $100")
     appmod.store.delete("donor")
+
+
+def test_sandbox_pending_capture_is_not_a_donation(monkeypatch, sandbox):
+    """PayPal answered the capture call, but without status COMPLETED nothing is captured (xreview 11/4)."""
+    def post(url, headers=None, content=None, json=None, data=None, timeout=None):
+        if url.endswith("/v1/oauth2/token"):
+            return FakeResp({"access_token": "tok", "expires_in": 3000})
+        if url.endswith("/verify-webhook-signature"):
+            return FakeResp({"verification_status": "SUCCESS"})
+        if url.endswith("/v2/checkout/orders/ORD-SB-P/capture"):
+            return FakeResp({"id": "ORD-SB-P", "status": "PENDING",
+                             "purchase_units": [{"payments": {"captures": [{"amount": {"value": "100.00", "currency_code": "USD"}}]}}]})
+        raise AssertionError(f"unexpected POST {url}")
+    monkeypatch.setattr(httpx, "post", post)
+    appmod.store.put("donor-p", {"log": [], "donation": 100, "order_id": "ORD-SB-P"})
+    r = TestClient(app).post("/webhook/paypal", json={"event_type": "CHECKOUT.ORDER.APPROVED", "resource": {"id": "ORD-SB-P"}}, headers=HEADERS)
+    assert r.status_code == 200 and r.json() == {"ok": False, "status": "PENDING"}
+    assert "thanks" not in appmod.store.get("donor-p")
+    appmod.store.delete("donor-p")

@@ -48,6 +48,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "free_yes": "No invoice needed. Press YES and I'll write your pickup note.",
         "invoice_yes": "Press YES and I'll send a PayPal invoice for ${price} to your email.",
         "invoice_sent_msg": "Invoice {id} sent for ${amount}. Pay it at the link; I'll write your pickup note when it clears.",
+        "invoice_open": "Invoice {id} for ${amount} is still open, so the price stays as billed. Pay it or press Start over to quote again.",
         "order_created_msg": "Order {id} created for ${amount}. Approve it on PayPal and I'll capture it.",
         "captured_msg": "Captured ${amount} (PayPal {id}). That covers {gaps} sliding-scale gaps of $50, or most of one laptop.",
         # offline explainer and receipt (agent.py)
@@ -101,6 +102,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "free_yes": "No hace falta factura. Pulsa SÍ y escribo tu nota de recogida.",
         "invoice_yes": "Pulsa SÍ y envío una factura de PayPal por ${price} a tu correo.",
         "invoice_sent_msg": "Factura {id} enviada por ${amount}. Págala en el enlace; escribo tu nota de recogida cuando se acredite.",
+        "invoice_open": "La factura {id} por ${amount} sigue abierta, así que el precio queda como se facturó. Págala o pulsa Empezar de nuevo para cotizar otra vez.",
         "order_created_msg": "Orden {id} creada por ${amount}. Apruébala en PayPal y la capturo.",
         "captured_msg": "Capturados ${amount} (PayPal {id}). Eso cubre {gaps} tramos de $50 de la escala móvil, o casi una laptop.",
         "explain_intro": "Así se calcula el precio de la {device}.",
