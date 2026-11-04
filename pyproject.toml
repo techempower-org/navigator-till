@@ -1,6 +1,6 @@
 [project]
 name = "navigator-till"
-version = "0.1.0"
+version = "0.2.0"
 description = "A plain-language front-desk agent for a small nonprofit: sliding-scale device invoices and donations on PayPal (sandbox) with an AI explainer."
 readme = "README.md"
 license = { file = "LICENSE" }

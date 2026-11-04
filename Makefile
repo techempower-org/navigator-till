@@ -10,5 +10,5 @@ test:            ## run the test suite (offline, mock PayPal)
 demo:            ## run the desk in mock mode on http://127.0.0.1:8077
 	MOCK=1 .venv/bin/uvicorn navigator_till.app:app --host 127.0.0.1 --port 8077
 
-sandbox:         ## run against the PayPal sandbox (needs PAYPAL_CLIENT_ID / PAYPAL_SECRET in the environment)
+sandbox:         ## run against the PayPal sandbox (needs PAYPAL_CLIENT_ID / PAYPAL_SECRET / PAYPAL_WEBHOOK_ID in the environment)
 	MOCK=0 .venv/bin/uvicorn navigator_till.app:app --host 127.0.0.1 --port 8077
