@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}{{ t('desk_title') }} · Navigator Till{% endblock %}
+{% block head %}<style>
+table{width:100%;border-collapse:collapse;font-size:.95rem}th,td{text-align:left;padding:.4rem .5rem;border-bottom:1px solid var(--line);vertical-align:top}th{color:var(--muted);font-weight:600}
+td.num{font-variant-numeric:tabular-nums;text-align:right}h2{font-size:1.15rem;margin:1.2rem 0 .4rem}.card{overflow-x:auto}
+</style>{% endblock %}
+{% block body %}
+<h2>{{ t('desk_title') }} <span class="pill">{{ t('desk_today') }} {{ today }}</span></h2>
+{% macro when(ts) %}{{ (ts or '')[11:16] if (ts or '')[:10] == today else (ts or '')[:16].replace('T', ' ') }}{% endmacro %}
+<div class="card"><h2>{{ t('desk_quotes') }} ({{ quotes | length }})</h2>
+{% if quotes %}<table><tr><th>{{ t('when') }}</th><th>{{ t('device') }}</th><th>{{ t('household') }}</th><th>{{ t('income') }} / {{ t('program') }}</th><th>{{ t('band') }}</th><th>{{ t('price') }}</th><th>{{ t('stage') }}</th></tr>
+{% for s in quotes %}<tr><td>{{ when(s.quoted_at) }}</td><td>{{ label(s.quote.device_label) }}</td><td class="num">{{ s.quote.household }}</td><td>{% if s.quote.categorical %}{{ s.quote.categorical | title }}{% else %}${{ '{:,}'.format(s.quote.annual_income) }}{% endif %}</td><td>{{ label(s.quote.band_label) }}</td><td class="num">${{ s.quote.price }}</td><td>{{ t('stage_pickup') if s.receipt else (t('stage_invoiced') if s.invoice_id else t('stage_quoted')) }}</td></tr>{% endfor %}
+</table>{% else %}<p class="muted">{{ t('desk_none') }}</p>{% endif %}</div>
+<div class="card"><h2>{{ t('desk_unpaid') }} ({{ unpaid | length }})</h2>
+{% if unpaid %}<table><tr><th>{{ t('when') }}</th><th>{{ t('invoice') }}</th><th>{{ t('email') }}</th><th>{{ t('device') }}</th><th>{{ t('amount') }}</th></tr>
+{% for s in unpaid %}<tr><td>{{ when(s.invoiced_at) }}</td><td>{{ s.invoice_id }}</td><td>{{ s.email or '' }}</td><td>{{ label(s.quote.device_label) }}</td><td class="num">${{ s.invoice_amount }}</td></tr>{% endfor %}
+</table>{% else %}<p class="muted">{{ t('desk_none') }}</p>{% endif %}</div>
+<div class="card"><h2>{{ t('desk_pickups') }} ({{ pickups | length }})</h2>
+{% if pickups %}<table><tr><th>{{ t('when') }}</th><th>{{ t('device') }}</th><th>{{ t('email') }}</th><th>{{ t('paid') }}</th><th>{{ t('reference') }}</th></tr>
+{% for s in pickups %}<tr><td>{{ when(s.paid_at) }}</td><td>{{ label(s.quote.device_label) }}</td><td>{{ s.email or '' }}</td><td class="num">{% if s.invoice_id %}${{ s.paid }}{% else %}{{ t('no_charge') }}{% endif %}</td><td>{{ s.invoice_id or 'no-charge' }}</td></tr>{% endfor %}
+</table>{% else %}<p class="muted">{{ t('desk_none') }}</p>{% endif %}</div>
+<div class="card"><h2>{{ t('desk_donations') }} ({{ donations | length }})</h2>
+{% if donations %}<table><tr><th>{{ t('when') }}</th><th>{{ t('order') }}</th><th>{{ t('amount') }}</th></tr>
+{% for s in donations %}<tr><td>{{ when(s.donated_at) }}</td><td>{{ s.order_id }}</td><td class="num">${{ s.donation }}</td></tr>{% endfor %}
+</table>{% else %}<p class="muted">{{ t('desk_none') }}</p>{% endif %}</div>
+<p><a href="/">{{ t('back') }}</a></p>
+{% endblock %}

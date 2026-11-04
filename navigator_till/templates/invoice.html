@@ -1,17 +1,17 @@
 {% extends "base.html" %}
-{% block title %}Invoice sent · Navigator Till{% endblock %}
+{% block title %}{{ t('invoice_sent') }} · Navigator Till{% endblock %}
 {% block body %}
 <div class="card">
-  <h2>Invoice sent</h2>
-  <dl><dt>Invoice</dt><dd>{{ invoice.id }}</dd><dt>Amount</dt><dd>${{ invoice.amount }} {{ invoice.currency }}</dd><dt>Status</dt><dd>{{ invoice.status }}</dd><dt>Pay at</dt><dd><a href="{{ invoice.link }}">{{ invoice.link }}</a></dd><dt>For</dt><dd>{{ quote.device_label }} ({{ quote.band_label }})</dd></dl>
-  <p class="muted">Events: {{ invoice.events | join(' → ') }}</p>
+  <h2>{{ t('invoice_sent') }}</h2>
+  <dl><dt>{{ t('invoice') }}</dt><dd>{{ invoice.id }}</dd><dt>{{ t('amount') }}</dt><dd>${{ invoice.amount }} {{ invoice.currency }}</dd><dt>{{ t('status') }}</dt><dd>{{ invoice.status }}</dd><dt>{{ t('pay_at') }}</dt><dd><a href="{{ invoice.link }}">{{ invoice.link }}</a></dd><dt>{{ t('for') }}</dt><dd>{{ label(quote.device_label) }} ({{ label(quote.band_label) }})</dd></dl>
+  <p class="muted">{{ t('events') }} {{ invoice.events | join(' → ') }}</p>
 </div>
 {% if mock %}
-<form method="post" action="/webhook/paypal" class="yes"><p><strong>Mock payer:</strong> in the sandbox PayPal's hosted page takes the payment and a webhook tells us. Here, press this to play the payer.</p>
-<input type="hidden" name="event_type" value="INVOICING.INVOICE.PAID"><input type="hidden" name="resource_id" value="{{ invoice.id }}"><button type="submit">I paid the invoice</button></form>
-<p><a href="/receipt">See the receipt after paying</a></p>
+<form method="post" action="/webhook/paypal" class="yes"><p><strong>{{ t('mock_payer') }}</strong> {{ t('mock_payer_text') }}</p>
+<input type="hidden" name="event_type" value="INVOICING.INVOICE.PAID"><input type="hidden" name="resource_id" value="{{ invoice.id }}"><button type="submit">{{ t('i_paid') }}</button></form>
+<p><a href="/receipt">{{ t('see_receipt') }}</a></p>
 {% else %}
-<p>After the client pays on PayPal, the webhook marks it paid and the <a href="/receipt">receipt</a> appears.</p>
+<p>{{ t('after_pay') }} <a href="/receipt">{{ t('receipt_link') }}</a> {{ t('appears') }}</p>
 {% endif %}
-<p><a href="/">Back to the desk</a></p>
+<p><a href="/">{{ t('back') }}</a></p>
 {% endblock %}

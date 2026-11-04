@@ -8,6 +8,7 @@ Money moves only after a human confirmation in app.py; this module never decides
 from __future__ import annotations
 
 import base64
+import json
 import itertools
 import os
 import time
@@ -106,6 +107,14 @@ class MockPayPal:
         return o
 
 
+def _dollars(value) -> int:
+    """PayPal sends amounts as strings ("50.00"); the desk prices in whole dollars."""
+    try:
+        return int(round(float(value)))
+    except (TypeError, ValueError):
+        return 0
+
+
 class SandboxPayPal:
     """The same four calls against the PayPal sandbox (REST, OAuth client credentials)."""
 
@@ -156,8 +165,17 @@ class SandboxPayPal:
     def get_invoice(self, invoice_id: str) -> Invoice:
         r = httpx.get(f"{self.base}/v2/invoicing/invoices/{invoice_id}", headers=self._h(), timeout=30)
         r.raise_for_status()
-        inv = self.invoices[invoice_id]
-        inv.status = r.json().get("status", inv.status)
+        j = r.json()
+        inv = self.invoices.get(invoice_id)
+        if inv is None:                                       # created before a restart: rebuild from PayPal's answer
+            detail = j.get("detail") or {}
+            email = (((j.get("primary_recipients") or [{}])[0]).get("billing_info") or {}).get("email_address", "")
+            inv = Invoice(id=invoice_id, status=j.get("status", "UNKNOWN"), recipient_email=email,
+                          amount=_dollars((j.get("amount") or {}).get("value")), currency=detail.get("currency_code", "USD"),
+                          memo=detail.get("note", ""), link=(detail.get("metadata") or {}).get("recipient_view_url", ""),
+                          events=["read (sandbox)"])
+            self.invoices[invoice_id] = inv
+        inv.status = j.get("status", inv.status)
         return inv
 
     def settle_invoice(self, invoice_id: str) -> Invoice:
@@ -181,10 +199,51 @@ class SandboxPayPal:
     def capture_order(self, order_id: str) -> Order:
         r = httpx.post(f"{self.base}/v2/checkout/orders/{order_id}/capture", headers=self._h(), timeout=30)
         r.raise_for_status()
-        o = self.orders[order_id]
-        o.status = r.json().get("status", "COMPLETED"); o.events.append("captured (sandbox)")
+        j = r.json()
+        o = self.orders.get(order_id)
+        if o is None:                                         # created before a restart: rebuild from the capture
+            try:
+                cap = j["purchase_units"][0]["payments"]["captures"][0]["amount"]
+            except (KeyError, IndexError, TypeError):
+                cap = {}
+            o = Order(id=order_id, status="CREATED", amount=_dollars(cap.get("value")), currency=cap.get("currency_code", "USD"),
+                      note="", approve_link="", events=["read (sandbox)"])
+            self.orders[order_id] = o
+        o.status = j.get("status", "UNKNOWN"); o.events.append(f"capture answered {o.status} (sandbox)")
         return o
 
 
 def client() -> MockPayPal | SandboxPayPal:
     return MockPayPal() if is_mock() else SandboxPayPal()
+
+
+# Webhook signature verification (sandbox and live share the same endpoint shape).
+TRANSMISSION_HEADERS = ("paypal-transmission-id", "paypal-transmission-time", "paypal-transmission-sig",
+                        "paypal-cert-url", "paypal-auth-algo")
+
+
+def verify_webhook(headers, body: bytes | str, webhook_id: str, *, client: "SandboxPayPal | None" = None) -> bool:
+    """True only when PayPal answers verification_status == "SUCCESS" for this delivery.
+
+    `headers` is any case-insensitive mapping (Starlette's request.headers works); `body` is the
+    raw event body exactly as received: it is spliced into the verify request untouched, because
+    PayPal signs the bytes it sent, not a re-serialised copy. Missing headers, an empty webhook id,
+    or any transport error count as not verified."""
+    if not webhook_id:
+        return False
+    h = {k: headers.get(k) or headers.get(k.upper()) for k in TRANSMISSION_HEADERS}
+    if not all(h.values()):
+        return False
+    raw = body.decode() if isinstance(body, bytes) else body
+    meta = {"auth_algo": h["paypal-auth-algo"], "cert_url": h["paypal-cert-url"],
+            "transmission_id": h["paypal-transmission-id"], "transmission_sig": h["paypal-transmission-sig"],
+            "transmission_time": h["paypal-transmission-time"], "webhook_id": webhook_id}
+    payload = json.dumps(meta)[:-1] + ', "webhook_event": ' + raw + "}"
+    pp = client or SandboxPayPal()
+    try:
+        r = httpx.post(f"{pp.base}/v1/notifications/verify-webhook-signature", headers=pp._h(),
+                       content=payload.encode(), timeout=20)
+        r.raise_for_status()
+        return r.json().get("verification_status") == "SUCCESS"
+    except (httpx.HTTPError, ValueError, KeyError):
+        return False

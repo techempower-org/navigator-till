@@ -14,7 +14,7 @@ Built by [TechEMPOWER](https://techempower.org), a Nevada County, California 501
 
 ```bash
 make setup      # python3 -m venv .venv && pip install -e ".[dev,ai]"
-make test       # 15 tests, offline
+make test       # 41 tests, offline
 make demo       # http://127.0.0.1:8077 in mock mode
 ```
 
@@ -24,7 +24,34 @@ Donor: `I want to cover a laptop for someone, $100` → YES → order → approv
 
 ### Sandbox mode
 
-Copy `.env.example` to `.env`, set `MOCK=0`, `PAYPAL_CLIENT_ID`, `PAYPAL_SECRET` (a sandbox app from developer.paypal.com), then `make sandbox`. Point a sandbox webhook at `/webhook/paypal` for `INVOICING.INVOICE.PAID` and `CHECKOUT.ORDER.APPROVED`. Webhook signature verification is not implemented yet (see Roadmap); do not expose this to the internet without it.
+Copy `.env.example` to `.env`, set `MOCK=0`, `PAYPAL_CLIENT_ID`, `PAYPAL_SECRET` (a sandbox app from developer.paypal.com), then `make sandbox`. Point a sandbox webhook at `/webhook/paypal` for `INVOICING.INVOICE.PAID` and `CHECKOUT.ORDER.APPROVED` and put its id in `PAYPAL_WEBHOOK_ID`.
+
+**Webhook verification.** In sandbox mode every delivery is checked with PayPal's `verify-webhook-signature` (the five `PAYPAL-TRANSMISSION-*` headers plus the raw event bytes, against `PAYPAL_WEBHOOK_ID`); anything that fails, arrives without the headers, or arrives while `PAYPAL_WEBHOOK_ID` is unset gets a 403. Even a verified event is not trusted on its own: an invoice's status is re-read from PayPal before a receipt is written, and an order is only "paid" when the capture call succeeds. The mock form buttons are accepted only in `MOCK=1`.
+
+### Environment
+
+| variable | default | what |
+|---|---|---|
+| `MOCK` | `1` | `0` calls the PayPal sandbox |
+| `PAYPAL_CLIENT_ID`, `PAYPAL_SECRET` | | sandbox app credentials (environment only, never a file in the repo) |
+| `PAYPAL_WEBHOOK_ID` | | the sandbox webhook's id; required in `MOCK=0` or every webhook is refused |
+| `ANTHROPIC_API_KEY`, `NT_MODEL` | | optional Claude explainer; offline templates otherwise |
+| `NT_DB` | `./navigator-till.db` | SQLite session store (gitignored, created `0600`) |
+| `NT_DB_RETENTION_DAYS` | `30` | sessions idle longer than this are purged when the store opens |
+| `NT_DESK_TOKEN` | | gate for `/desk`; required in `MOCK=0`, optional in the mock demo |
+| `NT_ORG`, `NT_ORG_EMAIL` | TechEMPOWER | shown on the pages and in PayPal memos |
+
+### The navigator view: `/desk`
+
+`GET /desk` is the desk's own page: quotes today, unpaid invoices, paid pickups (including no-charge pickup notes) and donations captured, read from the session store. It shows emails and incomes, so set `NT_DESK_TOKEN` and open `/desk?token=…` once; the token is swapped for a cookie (an HMAC, not the secret) and the browser is redirected to the clean URL. In sandbox mode the page refuses to open without a token. In the mock demo (`MOCK=1`) with no token it lists every stored session, so run the demo only on a box you own.
+
+### Spanish
+
+Add `?lang=es` to any page (or press **Español** in the header); a cookie keeps the choice. Every page string, the desk's chat replies, the offline explainer, the receipt and the quote's arithmetic render in Spanish, and the offline parser understands Spanish device, household, income and donation words ("Necesito una laptop, somos 3 y ganamos $28,000 al año"). With a Claude key the explainer is asked to write in Spanish. Device and band labels come from `pricing.yaml`; their Spanish lives in `navigator_till/i18n.py` and any label the org adds later falls back to its English text.
+
+### Receipt
+
+The receipt page has **Read this aloud** (the browser's own `speechSynthesis`, no server audio, no outside service; it is disabled with a note where the browser lacks it) and **Print**, which prints only the receipt card.
 
 ## Layout
 
@@ -32,17 +59,26 @@ Copy `.env.example` to `.env`, set `MOCK=0`, `PAYPAL_CLIENT_ID`, `PAYPAL_SECRET`
 navigator_till/pricing.yaml   the scale the org edits
 navigator_till/pricing.py     rules → Quote (with its steps)
 navigator_till/agent.py       parse + explain (Claude or offline)
-navigator_till/paypal.py      Mock and Sandbox clients, same four calls
-navigator_till/app.py         FastAPI desk: chat, YES, invoice/order, webhook, receipt
-tests/                        pricing edges, mock lifecycles, end-to-end loops
+navigator_till/paypal.py      Mock and Sandbox clients, same four calls, webhook verification
+navigator_till/store.py       SQLite session store (one JSON document per session)
+navigator_till/i18n.py        English and Spanish strings, Spanish quote steps
+navigator_till/app.py         FastAPI desk: chat, YES, invoice/order, webhook, receipt, /desk
+tests/                        pricing edges, mock lifecycles, end-to-end loops, webhook, store, i18n, desk
 ```
 
-## Roadmap (the hackathon week)
+## What changed in 0.2.0
 
-- Webhook signature verification and a persisted session store.
-- Read-aloud and print buttons on the receipt (the desk serves people who do not read easily).
-- Spanish.
-- A navigator view: today's quotes, unpaid invoices, pickups.
+- Webhook signature verification in sandbox mode; the real PayPal JSON event body is accepted.
+- Sessions persist in SQLite and survive a restart (`NT_DB`, retention purge, `0600` file).
+- Receipt: read aloud (browser speech) and print only the card.
+- Spanish for the whole desk (`?lang=es`), including the offline explainer and the quote's steps.
+- `/desk`: the navigator's view of the day.
+
+## Roadmap
+
+- A signed session cookie and a navigator login instead of the desk token.
+- Refunds and a "mark picked up" step on `/desk`.
+- More languages: the dictionary in `i18n.py` is the only thing to add.
 
 ## License
 

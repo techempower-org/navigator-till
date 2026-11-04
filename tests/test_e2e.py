@@ -32,6 +32,8 @@ def test_client_loop_invoice_to_receipt():
     assert r.json()["status"] == "PAID"
     r = c.get("/receipt")
     assert r.status_code == 200 and "Receipt and pickup note" in r.text and "You paid" in r.text and "$50" in r.text
+    assert "Read this aloud" in r.text and "speechSynthesis" in r.text          # browser TTS, no server audio
+    assert "window.print()" in r.text and "@media print" in r.text               # print only the receipt card
 
 
 def test_free_device_needs_no_invoice():
@@ -87,3 +89,16 @@ def test_unapproved_order_cannot_be_captured_by_a_stranger():
     oid = "ORD-MOCK-" + r.text.split("ORD-MOCK-")[1].split("<")[0]
     assert TestClient(app).post("/webhook/paypal", data={"event_type": "CHECKOUT.ORDER.APPROVED", "resource_id": oid}).status_code == 403
 
+
+
+def test_chat_after_invoicing_cannot_change_the_billed_quote():
+    """The invoice is the contract: a later chat line neither re-quotes nor changes the receipt (xreview 11/4)."""
+    c = TestClient(app)
+    c.post("/chat", data={"message": "I need a laptop, 3 people in the house, we make 28,000 a year"})
+    r = c.post("/confirm", data={"what": "device"})
+    iid = "INV2-MOCK-" + r.text.split("INV2-MOCK-")[1].split("<")[0]
+    r = c.post("/chat", data={"message": "I need a laptop, 2 people in the house, we make 5,000 a year"})   # would price at $0
+    assert "still open" in r.text and "YES sends" not in r.text
+    r = c.post("/webhook/paypal", data={"event_type": "INVOICING.INVOICE.PAID", "resource_id": iid})
+    assert r.json()["status"] == "PAID"
+    assert "$50" in c.get("/receipt").text

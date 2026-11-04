@@ -1,12 +1,32 @@
 {% extends "base.html" %}
-{% block title %}Receipt · Navigator Till{% endblock %}
+{% block title %}{{ t('receipt_title') }} · Navigator Till{% endblock %}
+{% block head %}
+<style>
+.tools{display:flex;gap:.5rem;flex-wrap:wrap;margin:.5rem 0 0}
+@media print{body{background:#fff;color:#000}body *{visibility:hidden}#receipt,#receipt *{visibility:visible}#receipt{position:absolute;left:0;top:0;width:100%;border:0;margin:0}.tools,details{display:none!important}}
+</style>
+{% endblock %}
 {% block body %}
-<div class="card">
-  <h2>Receipt and pickup note</h2>
-  <dl><dt>Device</dt><dd>{{ quote.device_label }}</dd><dt>List price</dt><dd>${{ quote.list_price }}</dd><dt>Band</dt><dd>{{ quote.band_label }}</dd><dt>You paid</dt><dd>${{ paid }}</dd><dt>Reference</dt><dd>{{ ref }}</dd></dl>
-  <p>{{ state.receipt }}</p>
-  <details><summary>How the price was worked out</summary><ul>{% for s in quote.steps %}<li>{{ s }}</li>{% endfor %}</ul></details>
+<div class="card" id="receipt">
+  <h2>{{ t('receipt_heading') }}</h2>
+  <dl><dt>{{ t('device') }}</dt><dd>{{ label(quote.device_label) }}</dd><dt>{{ t('list_price') }}</dt><dd>${{ quote.list_price }}</dd><dt>{{ t('band') }}</dt><dd>{{ label(quote.band_label) }}</dd><dt>{{ t('you_paid') }}</dt><dd>${{ paid }}</dd><dt>{{ t('reference') }}</dt><dd>{{ ref }}</dd></dl>
+  <p id="receipt-text">{{ state.receipt }}</p>
+  <details><summary>{{ t('how_worked') }}</summary><ul>{% for s in steps(quote) %}<li>{{ s }}</li>{% endfor %}</ul></details>
+  <p class="tools"><button type="button" id="read" aria-live="polite" data-read="🔊 {{ t('read_aloud') }}" data-stop="⏹ {{ t('stop_reading') }}" data-none="{{ t('no_tts') }}">🔊 {{ t('read_aloud') }}</button> <button type="button" class="quiet" onclick="window.print()">🖨 {{ t('print') }}</button></p>
 </div>
-<p><a href="/">Back to the desk</a> · <button class="quiet" form="reset">Start over</button></p>
+<p><a href="/">{{ t('back') }}</a> · <button class="quiet" form="reset">{{ t('start_over') }}</button></p>
 <form id="reset" method="post" action="/reset"></form>
+<script>
+(function(){
+  var b=document.getElementById('read'); if(!('speechSynthesis' in window)){b.disabled=true;b.textContent=b.dataset.none;return;}
+  var card=document.getElementById('receipt');
+  var text=[].map.call(card.querySelectorAll('dl > *'),function(e){return e.textContent;}).join(' ')+'. '+document.getElementById('receipt-text').textContent;
+  b.addEventListener('click',function(){
+    if(speechSynthesis.speaking){speechSynthesis.cancel();b.textContent=b.dataset.read;return;}
+    var u=new SpeechSynthesisUtterance(text);u.lang=document.documentElement.lang||'en';u.rate=0.95;
+    u.onend=function(){b.textContent=b.dataset.read;};
+    b.textContent=b.dataset.stop;speechSynthesis.speak(u);
+  });
+})();
+</script>
 {% endblock %}

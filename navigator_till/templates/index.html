@@ -1,20 +1,20 @@
 {% extends "base.html" %}
 {% block body %}
 <div class="log">
-{% for who, text in state.log %}<div class="msg {{ who }}"><span class="who">{{ 'you' if who == 'you' else 'the desk' }}</span>{{ text }}</div>{% endfor %}
-{% if not state.log %}<div class="msg till"><span class="who">the desk</span>Hi. I can price a refurbished laptop or desktop for your household, or take a donation that covers one for a neighbor. For example: "I need a laptop, there are 3 of us and I'm on CalFresh" or "I want to cover a laptop for someone, $100".</div>{% endif %}
+{% for who, text in state.log %}<div class="msg {{ who }}"><span class="who">{{ t('you') if who == 'you' else t('desk') }}</span>{{ text }}</div>{% endfor %}
+{% if not state.log %}<div class="msg till"><span class="who">{{ t('desk') }}</span>{{ t('greeting') }}</div>{% endif %}
 </div>
 {% if confirm %}
 <form class="yes" method="post" action="/confirm">
   <input type="hidden" name="what" value="{{ confirm }}">
-  <p><strong>Ready?</strong> {% if confirm == 'device' %}{% if state.quote.price == 0 %}No charge. YES writes your pickup note.{% else %}YES sends a PayPal invoice for ${{ state.quote.price }} to {{ state.email or 'your email' }}.{% endif %}{% else %}YES opens PayPal checkout for ${{ state.donation }}.{% endif %} Nothing happens until you press it.</p>
-  <button type="submit">YES, go ahead</button> <button class="quiet" type="submit" form="reset">No, start over</button>
+  <p><strong>{{ t('ready') }}</strong> {% if confirm == 'device' %}{% if state.quote.price == 0 %}{{ t('no_charge_yes') }}{% else %}{{ t('yes_invoice', price=state.quote.price, email=state.email or t('your_email')) }}{% endif %}{% else %}{{ t('yes_checkout', amount=state.donation) }}{% endif %} {{ t('nothing_until') }}</p>
+  <button type="submit">{{ t('yes_button') }}</button> <button class="quiet" type="submit" form="reset">{{ t('no_button') }}</button>
 </form>
 {% endif %}
 <form class="chat" method="post" action="/chat">
-  <textarea name="message" rows="2" placeholder="Type here…" required></textarea>
-  <input name="email" type="email" value="{{ state.email or '' }}" placeholder="Email for the invoice or receipt (optional)">
-  <button type="submit">Send</button>
+  <textarea name="message" rows="2" placeholder="{{ t('type_here') }}" required></textarea>
+  <input name="email" type="email" value="{{ state.email or '' }}" placeholder="{{ t('email_placeholder') }}">
+  <button type="submit">{{ t('send') }}</button>
 </form>
 <form id="reset" method="post" action="/reset"></form>
 {% endblock %}
