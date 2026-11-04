@@ -14,7 +14,7 @@ Built by [TechEMPOWER](https://techempower.org), a Nevada County, California 501
 
 ```bash
 make setup      # python3 -m venv .venv && pip install -e ".[dev,ai]"
-make test       # 37 tests, offline
+make test       # 39 tests, offline
 make demo       # http://127.0.0.1:8077 in mock mode
 ```
 
