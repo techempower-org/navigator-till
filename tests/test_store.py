@@ -43,3 +43,16 @@ def test_app_session_survives_store_reopen(monkeypatch):
     assert "You paid" in c.get("/receipt").text
     c.post("/reset")
     assert "Invoice INV2-MOCK-" not in c.get("/").text
+
+
+def test_empty_sessions_are_not_written_and_old_ones_are_purged(tmp_path):
+    import os, sqlite3, stat
+    path = tmp_path / "s.db"
+    s = Store(path)
+    assert stat.S_IMODE(os.stat(path).st_mode) == 0o600
+    s.put("blank", {"log": []})
+    assert s.get("blank") is None
+    s.put("old", {"log": [("you", "hi")]})
+    with sqlite3.connect(path) as c:
+        c.execute("UPDATE sessions SET updated_at = '2020-01-01T00:00:00+00:00' WHERE sid = 'old'")
+    assert Store(path).get("old") is None                   # purged on open
