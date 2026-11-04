@@ -194,9 +194,8 @@ def _settle(request: Request, event_type: str, resource_id: str, body: bytes, is
 @app.get("/receipt", response_class=HTMLResponse)
 def receipt(request: Request):
     sid = _sid(request); st = _state(sid)
-    if st.get("receipt"):
-        inv = pp.get_invoice(st["invoice_id"]) if st.get("invoice_id") else None
-        return _render(request, "receipt.html", sid, st, quote=st["quote"], paid=inv.amount if inv else 0, ref=inv.id if inv else "no-charge")
+    if st.get("receipt"):                                      # written only after PayPal confirmed; no re-read needed
+        return _render(request, "receipt.html", sid, st, quote=st["quote"], paid=st.get("paid", 0), ref=st.get("invoice_id") or "no-charge")
     if st.get("thanks"):
         return _render(request, "thanks.html", sid, st)
     return RedirectResponse("/", status_code=303)

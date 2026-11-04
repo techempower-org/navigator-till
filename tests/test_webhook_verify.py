@@ -37,7 +37,9 @@ def _fake_http(monkeypatch, verdict="SUCCESS", invoice_status="PAID", seen=None)
         raise AssertionError(f"unexpected POST {url}")
 
     def get(url, headers=None, timeout=None):
-        return FakeResp({"status": invoice_status})
+        return FakeResp({"status": invoice_status, "amount": {"value": "50.00", "currency_code": "USD"},
+                         "detail": {"currency_code": "USD", "note": "laptop"},
+                         "primary_recipients": [{"billing_info": {"email_address": "pat@example.test"}}]})
     monkeypatch.setattr(httpx, "post", post)
     monkeypatch.setattr(httpx, "get", get)
 
@@ -109,3 +111,31 @@ def test_mock_mode_accepts_json_event_for_own_session():
     r = c.post("/webhook/paypal", json={"event_type": "INVOICING.INVOICE.PAID", "resource": {"invoice": {"id": iid}}})
     assert r.json()["status"] == "PAID"
     assert c.post("/webhook/paypal", json={"event_type": "INVOICING.INVOICE.PAID"}).status_code == 400
+
+
+def test_sandbox_webhook_after_restart_rebuilds_invoice_from_paypal(monkeypatch, sandbox):
+    """The process restarted: the session is in SQLite but the client's invoice cache is empty."""
+    _fake_http(monkeypatch, verdict="SUCCESS")
+    sandbox.invoices.clear()
+    r = TestClient(app).post("/webhook/paypal", json=EVENT, headers=HEADERS)
+    assert r.status_code == 200 and r.json()["status"] == "PAID"
+    st = appmod.store.get("sb-session")
+    assert st["paid"] == 50 and st["receipt"].startswith("Paid: $50") and sandbox.get_invoice("INV2-SB-1").recipient_email == "pat@example.test"
+
+
+def test_sandbox_capture_after_restart_rebuilds_order(monkeypatch, sandbox):
+    def post(url, headers=None, content=None, json=None, data=None, timeout=None):
+        if url.endswith("/v1/oauth2/token"):
+            return FakeResp({"access_token": "tok", "expires_in": 3000})
+        if url.endswith("/verify-webhook-signature"):
+            return FakeResp({"verification_status": "SUCCESS"})
+        if url.endswith("/v2/checkout/orders/ORD-SB-9/capture"):
+            return FakeResp({"id": "ORD-SB-9", "status": "COMPLETED",
+                             "purchase_units": [{"payments": {"captures": [{"amount": {"value": "100.00", "currency_code": "USD"}}]}}]})
+        raise AssertionError(f"unexpected POST {url}")
+    monkeypatch.setattr(httpx, "post", post)
+    appmod.store.put("donor", {"log": [], "donation": 100, "order_id": "ORD-SB-9"})
+    r = TestClient(app).post("/webhook/paypal", json={"event_type": "CHECKOUT.ORDER.APPROVED", "resource": {"id": "ORD-SB-9"}}, headers=HEADERS)
+    assert r.status_code == 200 and r.json()["status"] == "COMPLETED"
+    assert appmod.store.get("donor")["thanks"].startswith("Captured $100")
+    appmod.store.delete("donor")

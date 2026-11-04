@@ -107,6 +107,14 @@ class MockPayPal:
         return o
 
 
+def _dollars(value) -> int:
+    """PayPal sends amounts as strings ("50.00"); the desk prices in whole dollars."""
+    try:
+        return int(round(float(value)))
+    except (TypeError, ValueError):
+        return 0
+
+
 class SandboxPayPal:
     """The same four calls against the PayPal sandbox (REST, OAuth client credentials)."""
 
@@ -157,8 +165,17 @@ class SandboxPayPal:
     def get_invoice(self, invoice_id: str) -> Invoice:
         r = httpx.get(f"{self.base}/v2/invoicing/invoices/{invoice_id}", headers=self._h(), timeout=30)
         r.raise_for_status()
-        inv = self.invoices[invoice_id]
-        inv.status = r.json().get("status", inv.status)
+        j = r.json()
+        inv = self.invoices.get(invoice_id)
+        if inv is None:                                       # created before a restart: rebuild from PayPal's answer
+            detail = j.get("detail") or {}
+            email = (((j.get("primary_recipients") or [{}])[0]).get("billing_info") or {}).get("email_address", "")
+            inv = Invoice(id=invoice_id, status=j.get("status", "UNKNOWN"), recipient_email=email,
+                          amount=_dollars((j.get("amount") or {}).get("value")), currency=detail.get("currency_code", "USD"),
+                          memo=detail.get("note", ""), link=(detail.get("metadata") or {}).get("recipient_view_url", ""),
+                          events=["read (sandbox)"])
+            self.invoices[invoice_id] = inv
+        inv.status = j.get("status", inv.status)
         return inv
 
     def settle_invoice(self, invoice_id: str) -> Invoice:
@@ -182,8 +199,17 @@ class SandboxPayPal:
     def capture_order(self, order_id: str) -> Order:
         r = httpx.post(f"{self.base}/v2/checkout/orders/{order_id}/capture", headers=self._h(), timeout=30)
         r.raise_for_status()
-        o = self.orders[order_id]
-        o.status = r.json().get("status", "COMPLETED"); o.events.append("captured (sandbox)")
+        j = r.json()
+        o = self.orders.get(order_id)
+        if o is None:                                         # created before a restart: rebuild from the capture
+            try:
+                cap = j["purchase_units"][0]["payments"]["captures"][0]["amount"]
+            except (KeyError, IndexError, TypeError):
+                cap = {}
+            o = Order(id=order_id, status="CREATED", amount=_dollars(cap.get("value")), currency=cap.get("currency_code", "USD"),
+                      note="", approve_link="", events=["read (sandbox)"])
+            self.orders[order_id] = o
+        o.status = j.get("status", "COMPLETED"); o.events.append("captured (sandbox)")
         return o
 
 
