@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Receipt · Navigator Till{% endblock %}
+{% block body %}
+<div class="card">
+  <h2>Receipt and pickup note</h2>
+  <dl><dt>Device</dt><dd>{{ quote.device_label }}</dd><dt>List price</dt><dd>${{ quote.list_price }}</dd><dt>Band</dt><dd>{{ quote.band_label }}</dd><dt>You paid</dt><dd>${{ paid }}</dd><dt>Reference</dt><dd>{{ ref }}</dd></dl>
+  <p>{{ state.receipt }}</p>
+  <details><summary>How the price was worked out</summary><ul>{% for s in quote.steps %}<li>{{ s }}</li>{% endfor %}</ul></details>
+</div>
+<p><a href="/">Back to the desk</a> · <button class="quiet" form="reset">Start over</button></p>
+<form id="reset" method="post" action="/reset"></form>
+{% endblock %}
