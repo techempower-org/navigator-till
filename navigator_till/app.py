@@ -18,7 +18,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from starlette.concurrency import run_in_threadpool
 
-from . import agent, paypal, pricing
+from . import agent, i18n, paypal, pricing
 from .store import Store
 
 app = FastAPI(title="Navigator Till")
@@ -39,10 +39,19 @@ def _state(sid: str) -> dict:
     return store.get(sid) or {"log": []}
 
 
+def _lang(request: Request) -> str:
+    """?lang=es wins, then the nt_lang cookie, then English."""
+    return i18n.pick(request.query_params.get("lang") or request.cookies.get("nt_lang"))
+
+
 def _render(request: Request, name: str, sid: str, st: dict, **ctx):
+    lang = _lang(request)
     store.put(sid, st)                                          # every handler mutates st, then renders
-    resp = templates.TemplateResponse(request, name, {"org": ORG, "mock": paypal.is_mock(), "state": st, **ctx})
+    resp = templates.TemplateResponse(request, name, {"org": ORG, "mock": paypal.is_mock(), "state": st, "lang": lang,
+                                                      "t": i18n.tr(lang), "label": lambda x: i18n.label(lang, x),
+                                                      "steps": lambda q: i18n.steps(q, lang), **ctx})
     resp.set_cookie("nt_sid", sid, httponly=True, samesite="lax")
+    resp.set_cookie("nt_lang", lang, samesite="lax", max_age=60 * 60 * 24 * 365)
     return resp
 
 
@@ -54,7 +63,7 @@ def home(request: Request):
 
 @app.post("/chat", response_class=HTMLResponse)
 def chat(request: Request, message: str = Form(...), email: str = Form("")):
-    sid = _sid(request); st = _state(sid)
+    sid = _sid(request); st = _state(sid); lang = st["lang"] = _lang(request); T = i18n.tr(lang)
     st["log"].append(("you", message))
     req = agent.parse(message)
     st["request"] = req
@@ -62,48 +71,42 @@ def chat(request: Request, message: str = Form(...), email: str = Form("")):
         st["email"] = email.strip()
     if req.kind == "donation":
         if req.missing:
-            st["log"].append(("till", "Thank you. How much would you like to cover? A whole laptop is $200; any amount helps."))
+            st["log"].append(("till", T("ask_amount")))
             return _render(request, "index.html", sid, st)
         st["donation"] = req.donation_amount
-        st["log"].append(("till", f"Thank you. ${req.donation_amount} toward a device for a neighbor who can't pay the full price. Press YES to open PayPal checkout."))
+        st["log"].append(("till", T("donation_ready", amount=req.donation_amount)))
         return _render(request, "index.html", sid, st, confirm="donation")
     if req.kind == "unknown" or req.missing:
-        ask = {"device": "which device you need (laptop, desktop, or a battery backup)",
-               "household": "how many people live in your household",
-               "income": "roughly what your household makes in a year, or a program you're on (CalFresh, Medi-Cal, SSI, Lifeline, WIC, Section 8, free lunch)"}
-        need = [ask[m] for m in (req.missing or list(ask))]
-        st["log"].append(("till", "I can price that. Tell me " + "; ".join(need) + "."))
+        need = [T("need_" + m) for m in (req.missing or ["device", "household", "income"])]
+        st["log"].append(("till", T("can_price", needs="; ".join(need))))
         return _render(request, "index.html", sid, st)
     try:
         q = pricing.quote(req.device, req.household, req.annual_income, program=req.program)
     except (ValueError, KeyError) as e:
-        st["log"].append(("till", f"I couldn't price that: {e}"))
+        st["log"].append(("till", T("cannot_price", error=e)))
         return _render(request, "index.html", sid, st)
     st["quote"] = q
-    st["log"].append(("till", agent.explain(q)))
-    if q.price == 0:
-        st["log"].append(("till", "No invoice needed. Press YES and I'll write your pickup note."))
-    else:
-        st["log"].append(("till", f"Press YES and I'll send a PayPal invoice for ${q.price} to your email."))
+    st["log"].append(("till", agent.explain(q, lang)))
+    st["log"].append(("till", T("free_yes") if q.price == 0 else T("invoice_yes", price=q.price)))
     return _render(request, "index.html", sid, st, confirm="device")
 
 
 @app.post("/confirm", response_class=HTMLResponse)
 def confirm(request: Request, what: str = Form(...)):
-    sid = _sid(request); st = _state(sid)
+    sid = _sid(request); st = _state(sid); lang = st["lang"] = _lang(request); T = i18n.tr(lang)
     if what == "device":
         q: pricing.Quote | None = st.get("quote")
         if not q:
             raise HTTPException(400, "nothing to confirm")
         if q.price == 0:
-            st["receipt"] = agent.receipt(q, 0, "no-charge")
+            st["receipt"] = agent.receipt(q, 0, "no-charge", lang)
             st["log"].append(("till", st["receipt"]))
             return _render(request, "receipt.html", sid, st, quote=q, paid=0, ref="no-charge")
         inv = pp.create_invoice(recipient_email=st.get("email") or "client@example.test", amount=q.price,
                                 currency=CURRENCY, memo=f"{ORG}: {q.device_label} (sliding scale, {q.band_label})")
         pp.send_invoice(inv.id)
         st["invoice_id"] = inv.id
-        st["log"].append(("till", f"Invoice {inv.id} sent for ${inv.amount}. Pay it at the link; I'll write your pickup note when it clears."))
+        st["log"].append(("till", T("invoice_sent_msg", id=inv.id, amount=inv.amount)))
         return _render(request, "invoice.html", sid, st, invoice=inv, quote=q)
     if what == "donation":
         amt = st.get("donation")
@@ -111,7 +114,7 @@ def confirm(request: Request, what: str = Form(...)):
             raise HTTPException(400, "nothing to confirm")
         o = pp.create_order(amount=amt, currency=CURRENCY, note=f"{ORG} device fund: cover a neighbor's sliding-scale gap")
         st["order_id"] = o.id
-        st["log"].append(("till", f"Order {o.id} created for ${o.amount}. Approve it on PayPal and I'll capture it."))
+        st["log"].append(("till", T("order_created_msg", id=o.id, amount=o.amount)))
         return _render(request, "order.html", sid, st, order=o)
     raise HTTPException(400, "unknown confirmation")
 
@@ -157,7 +160,7 @@ def _settle(request: Request, event_type: str, resource_id: str, body: bytes, is
             return {"ok": False, "status": inv.status}
         for sid2, st in store.find("invoice_id", inv.id):
             if not st.get("receipt"):
-                st["receipt"] = agent.receipt(st["quote"], inv.amount, inv.id)
+                st["receipt"] = agent.receipt(st["quote"], inv.amount, inv.id, st.get("lang", "en"))
                 st["log"].append(("till", st["receipt"]))
                 store.put(sid2, st)
         return {"ok": True, "status": inv.status}
@@ -172,7 +175,7 @@ def _settle(request: Request, event_type: str, resource_id: str, body: bytes, is
             raise HTTPException(409, f"order not capturable: {e}") from e
         for sid2, st in store.find("order_id", o.id):
             if not st.get("thanks"):
-                st["thanks"] = f"Captured ${o.amount} (PayPal {o.id}). That covers {o.amount // 50} sliding-scale gaps of $50, or most of one laptop."
+                st["thanks"] = i18n.t(st.get("lang", "en"), "captured_msg", amount=o.amount, id=o.id, gaps=o.amount // 50)
                 st["log"].append(("till", st["thanks"]))
                 store.put(sid2, st)
         return {"ok": True, "status": o.status}

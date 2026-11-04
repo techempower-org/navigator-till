@@ -10,17 +10,20 @@ import os
 import re
 from dataclasses import dataclass
 
+from . import i18n
 from .pricing import Quote
 
 MODEL = os.environ.get("NT_MODEL", "claude-sonnet-5-5")
 
-DEVICE_WORDS = {
-    "laptop-plus": ("better laptop", "newer laptop", "laptop plus", "more memory"),
-    "laptop": ("laptop", "notebook", "chromebook"),
-    "desktop": ("desktop", "tower", "pc with a monitor"),
-    "ups": ("battery backup", "ups", "surge"),
+DEVICE_WORDS = {                # English first, then the Spanish words the desk hears
+    "laptop-plus": ("better laptop", "newer laptop", "laptop plus", "more memory", "laptop mejor", "más memoria"),
+    "laptop": ("laptop", "notebook", "chromebook", "portátil", "portatil"),
+    "desktop": ("desktop", "tower", "pc with a monitor", "escritorio", "torre"),
+    "ups": ("battery backup", "ups", "surge", "batería de respaldo", "bateria de respaldo"),
 }
-PROGRAM_WORDS = ("calfresh", "medi-cal", "medical", "medi cal", "ssi", "lifeline", "wic", "section 8", "free lunch")
+PROGRAM_WORDS = ("calfresh", "medi-cal", "medical", "medi cal", "ssi", "lifeline", "wic", "section 8", "sección 8", "seccion 8",
+                 "free lunch", "almuerzo gratis")
+DONATION_WORDS = ("donate", "donation", "cover a", "pay for someone", "sponsor", "gift", "donar", "donación", "donacion", "cubrir una", "cubrir la")
 
 
 @dataclass
@@ -46,20 +49,21 @@ def _money(text: str) -> int | None:
 
 def parse_offline(text: str) -> Request:
     t = text.lower()
-    if any(w in t for w in ("donate", "donation", "cover a", "pay for someone", "sponsor", "gift")):
+    if any(w in t for w in DONATION_WORDS):
         amt = _money(t)
         return Request(kind="donation", donation_amount=amt, missing=[] if amt else ["amount"])
     device = next((d for d, words in DEVICE_WORDS.items() if any(w in t for w in words)), None)
     program = next((p for p in PROGRAM_WORDS if p in t), None)
     if program in ("medical", "medi cal"):
         program = "medi-cal"
-    hh = re.search(r"(?:household|family|people|of)\s*(?:of\s*)?(\d{1,2})\b|(\d{1,2})\s*(?:people|of us|in (?:my|the) (?:house|family))", t)
+    program = {"sección 8": "section 8", "seccion 8": "section 8", "almuerzo gratis": "free lunch"}.get(program, program)
+    hh = re.search(r"(?:household|family|people|of|somos|hogar de|familia de)\s*(?:of\s*)?(\d{1,2})\b|(\d{1,2})\s*(?:people|of us|personas|in (?:my|the) (?:house|family))", t)
     household = int(next(g for g in hh.groups() if g)) if hh else None
     inc = None
-    m = re.search(r"(?:make|earn|income|bring in|get)\D{0,20}\$?\s*(\d{1,3}(?:,\d{3})+|\d+)(?:\s*(k|thousand))?\s*(a|per|/)?\s*(year|yr|month|mo)?", t)
+    m = re.search(r"(?:make|earn|income|bring in|get|gan\w+|ingreso\w*)\D{0,20}\$?\s*(\d{1,3}(?:,\d{3})+|\d+)(?:\s*(k|thousand|mil))?\s*(a|per|/|al|por)?\s*(year|yr|month|mo|año|ano|mes)?", t)
     if m:
         inc = int(m.group(1).replace(",", "")) * (1000 if m.group(2) else 1)
-        if m.group(4) in ("month", "mo"):
+        if m.group(4) in ("month", "mo", "mes"):
             inc *= 12
     missing = []
     if not device:
@@ -72,21 +76,17 @@ def parse_offline(text: str) -> Request:
                    household=household, annual_income=inc, program=program, missing=missing)
 
 
-def explain_offline(q: Quote) -> str:
-    lines = [f"Here is how the price works for the {q.device_label.lower()}."]
-    lines += [f"- {s}" for s in q.steps]
-    if q.price == 0:
-        lines.append("So this one is free for you. We only ask that you pick it up and let us show you how it works.")
-    else:
-        lines.append(f"So you would pay ${q.price}. We send a PayPal invoice; you can pay by card, bank, or PayPal, and there is no fee to you.")
-    lines.append("If the income or household number is off, tell me and I will redo it.")
+def explain_offline(q: Quote, lang: str = "en") -> str:
+    T = i18n.tr(lang)
+    lines = [T("explain_intro", device=i18n.label(lang, q.device_label).lower())]
+    lines += [f"- {s}" for s in i18n.steps(q, lang)]
+    lines.append(T("explain_free") if q.price == 0 else T("explain_pay", price=q.price))
+    lines.append(T("explain_fix"))
     return "\n".join(lines)
 
 
-def receipt_offline(q: Quote, paid: int, ref: str) -> str:
-    return (f"Paid: ${paid} for one {q.device_label.lower()} (PayPal reference {ref}). "
-            f"Pick-up: TechEMPOWER, 136 Idaho Maryland Rd, Grass Valley, weekdays 10-4; bring this note. "
-            f"Your device comes with a 90-day warranty and free help getting set up.")
+def receipt_offline(q: Quote, paid: int, ref: str, lang: str = "en") -> str:
+    return i18n.t(i18n.pick(lang), "receipt_text", paid=paid, device=i18n.label(lang, q.device_label).lower(), ref=ref)
 
 
 def _claude(system: str, user: str) -> str | None:
@@ -133,10 +133,11 @@ def parse(text: str) -> Request:
     return parse_offline(text)
 
 
-def explain(q: Quote) -> str:
+def explain(q: Quote, lang: str = "en") -> str:
     facts = "\n".join(q.steps) + f"\nFinal price to the client: ${q.price}."
-    return _claude(EXPLAIN_SYSTEM, facts) or explain_offline(q)
+    system = EXPLAIN_SYSTEM + (" Write in Spanish." if i18n.pick(lang) == "es" else "")
+    return _claude(system, facts) or explain_offline(q, lang)
 
 
-def receipt(q: Quote, paid: int, ref: str) -> str:
-    return receipt_offline(q, paid, ref)
+def receipt(q: Quote, paid: int, ref: str, lang: str = "en") -> str:
+    return receipt_offline(q, paid, ref, lang)
