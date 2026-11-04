@@ -64,6 +64,7 @@ def home(request: Request):
 @app.post("/chat", response_class=HTMLResponse)
 def chat(request: Request, message: str = Form(...), email: str = Form("")):
     sid = _sid(request); st = _state(sid); lang = st["lang"] = _lang(request); T = i18n.tr(lang)
+    message = message.strip()[:2000]                            # a chat line, not a document
     st["log"].append(("you", message))
     req = agent.parse(message)
     st["request"] = req

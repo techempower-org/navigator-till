@@ -60,7 +60,7 @@ def parse_offline(text: str) -> Request:
     hh = re.search(r"(?:household|family|people|of|somos|hogar de|familia de)\s*(?:of\s*)?(\d{1,2})\b|(\d{1,2})\s*(?:people|of us|personas|in (?:my|the) (?:house|family))", t)
     household = int(next(g for g in hh.groups() if g)) if hh else None
     inc = None
-    m = re.search(r"(?:make|earn|income|bring in|get|gan\w+|ingreso\w*)\D{0,20}\$?\s*(\d{1,3}(?:,\d{3})+|\d+)(?:\s*(k|thousand|mil))?\s*(a|per|/|al|por)?\s*(year|yr|month|mo|año|ano|mes)?", t)
+    m = re.search(r"(?:make|earn|income|bring in|get|gan\w{0,5}|ingresos?)\D{0,20}\$?\s*(\d{1,3}(?:,\d{3})+|\d+)(?:\s*(k|thousand|mil))?\s*(a|per|/|al|por)?\s*(year|yr|month|mo|año|ano|mes)?", t)
     if m:
         inc = int(m.group(1).replace(",", "")) * (1000 if m.group(2) else 1)
         if m.group(4) in ("month", "mo", "mes"):
