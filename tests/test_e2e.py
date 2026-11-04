@@ -32,6 +32,8 @@ def test_client_loop_invoice_to_receipt():
     assert r.json()["status"] == "PAID"
     r = c.get("/receipt")
     assert r.status_code == 200 and "Receipt and pickup note" in r.text and "You paid" in r.text and "$50" in r.text
+    assert "Read this aloud" in r.text and "speechSynthesis" in r.text          # browser TTS, no server audio
+    assert "window.print()" in r.text and "@media print" in r.text               # print only the receipt card
 
 
 def test_free_device_needs_no_invoice():
