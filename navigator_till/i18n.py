@@ -61,6 +61,12 @@ STRINGS: dict[str, dict[str, str]] = {
         "step_fpl": "Household of {household}: the 2026 poverty line is ${fpl:,} a year.",
         "step_pct": "Income ${income:,} is {pct}% of that line.",
         "step_band": "Band '{band}': the client pays {share}% of list = ${price}.",
+        # navigator view (/desk)
+        "desk_title": "Navigator view", "desk_today": "Today", "desk_quotes": "Quotes today", "desk_unpaid": "Unpaid invoices",
+        "desk_pickups": "Paid pickups", "desk_donations": "Donations captured", "desk_none": "None yet.", "when": "When",
+        "household": "Household", "income": "Income", "program": "Program", "price": "Price", "email": "Email",
+        "paid": "Paid", "stage": "Stage", "stage_quoted": "quoted", "stage_invoiced": "invoice sent", "stage_paid": "paid",
+        "stage_pickup": "ready for pickup", "no_charge": "no charge",
     },
     "es": {
         "lang_name": "Español", "switch_to": "English", "switch_lang": "en",
@@ -107,6 +113,11 @@ STRINGS: dict[str, dict[str, str]] = {
         "step_fpl": "Hogar de {household}: la línea de pobreza 2026 es ${fpl:,} al año.",
         "step_pct": "Un ingreso de ${income:,} es el {pct}% de esa línea.",
         "step_band": "Tramo '{band}': el cliente paga el {share}% del precio de lista = ${price}.",
+        "desk_title": "Vista del navegador", "desk_today": "Hoy", "desk_quotes": "Cotizaciones de hoy", "desk_unpaid": "Facturas sin pagar",
+        "desk_pickups": "Recogidas pagadas", "desk_donations": "Donaciones capturadas", "desk_none": "Todavía nada.", "when": "Cuándo",
+        "household": "Hogar", "income": "Ingreso", "program": "Programa", "price": "Precio", "email": "Correo",
+        "paid": "Pagado", "stage": "Etapa", "stage_quoted": "cotizado", "stage_invoiced": "factura enviada", "stage_paid": "pagado",
+        "stage_pickup": "listo para recoger", "no_charge": "sin costo",
     },
 }
 

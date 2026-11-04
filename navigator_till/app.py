@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import secrets
+from datetime import date, datetime
 from pathlib import Path
 
 import httpx
@@ -37,6 +38,10 @@ def _sid(request: Request) -> str:
 
 def _state(sid: str) -> dict:
     return store.get(sid) or {"log": []}
+
+
+def _now() -> str:
+    return datetime.now().astimezone().isoformat(timespec="minutes")
 
 
 def _lang(request: Request) -> str:
@@ -86,7 +91,7 @@ def chat(request: Request, message: str = Form(...), email: str = Form("")):
     except (ValueError, KeyError) as e:
         st["log"].append(("till", T("cannot_price", error=e)))
         return _render(request, "index.html", sid, st)
-    st["quote"] = q
+    st["quote"] = q; st["quoted_at"] = _now()
     st["log"].append(("till", agent.explain(q, lang)))
     st["log"].append(("till", T("free_yes") if q.price == 0 else T("invoice_yes", price=q.price)))
     return _render(request, "index.html", sid, st, confirm="device")
@@ -100,13 +105,13 @@ def confirm(request: Request, what: str = Form(...)):
         if not q:
             raise HTTPException(400, "nothing to confirm")
         if q.price == 0:
-            st["receipt"] = agent.receipt(q, 0, "no-charge", lang)
+            st["receipt"] = agent.receipt(q, 0, "no-charge", lang); st["paid"] = 0; st["paid_at"] = _now()
             st["log"].append(("till", st["receipt"]))
             return _render(request, "receipt.html", sid, st, quote=q, paid=0, ref="no-charge")
         inv = pp.create_invoice(recipient_email=st.get("email") or "client@example.test", amount=q.price,
                                 currency=CURRENCY, memo=f"{ORG}: {q.device_label} (sliding scale, {q.band_label})")
         pp.send_invoice(inv.id)
-        st["invoice_id"] = inv.id
+        st["invoice_id"] = inv.id; st["invoice_amount"] = inv.amount; st["invoiced_at"] = _now()
         st["log"].append(("till", T("invoice_sent_msg", id=inv.id, amount=inv.amount)))
         return _render(request, "invoice.html", sid, st, invoice=inv, quote=q)
     if what == "donation":
@@ -162,6 +167,7 @@ def _settle(request: Request, event_type: str, resource_id: str, body: bytes, is
         for sid2, st in store.find("invoice_id", inv.id):
             if not st.get("receipt"):
                 st["receipt"] = agent.receipt(st["quote"], inv.amount, inv.id, st.get("lang", "en"))
+                st["paid"] = inv.amount; st["paid_at"] = _now()
                 st["log"].append(("till", st["receipt"]))
                 store.put(sid2, st)
         return {"ok": True, "status": inv.status}
@@ -177,6 +183,7 @@ def _settle(request: Request, event_type: str, resource_id: str, body: bytes, is
         for sid2, st in store.find("order_id", o.id):
             if not st.get("thanks"):
                 st["thanks"] = i18n.t(st.get("lang", "en"), "captured_msg", amount=o.amount, id=o.id, gaps=o.amount // 50)
+                st["donated_at"] = _now()
                 st["log"].append(("till", st["thanks"]))
                 store.put(sid2, st)
         return {"ok": True, "status": o.status}
@@ -192,6 +199,28 @@ def receipt(request: Request):
     if st.get("thanks"):
         return _render(request, "thanks.html", sid, st)
     return RedirectResponse("/", status_code=303)
+
+
+@app.get("/desk", response_class=HTMLResponse)
+def desk(request: Request):
+    """The navigator's view: today's quotes, unpaid invoices, paid pickups, donations captured.
+    Shows emails and incomes, so set NT_DESK_TOKEN and open /desk?token=... once (a cookie keeps it)."""
+    token = os.environ.get("NT_DESK_TOKEN", "")
+    given = request.query_params.get("token") or request.cookies.get("nt_desk", "")
+    if token and not secrets.compare_digest(given, token):
+        raise HTTPException(403, "desk token required")
+    rows = [st for _, st in store.items()]
+    today = date.today().isoformat()
+    ctx = {"today": today,
+           "quotes": [st for st in rows if st.get("quote") and str(st.get("quoted_at", "")).startswith(today)],
+           "unpaid": [st for st in rows if st.get("invoice_id") and not st.get("receipt")],
+           "pickups": [st for st in rows if st.get("receipt")],
+           "donations": [st for st in rows if st.get("thanks")]}
+    sid = _sid(request)
+    resp = _render(request, "desk.html", sid, _state(sid), **ctx)
+    if token:
+        resp.set_cookie("nt_desk", token, httponly=True, samesite="lax")
+    return resp
 
 
 @app.post("/reset")
