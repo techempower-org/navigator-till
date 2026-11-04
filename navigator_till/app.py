@@ -11,6 +11,7 @@ import os
 import secrets
 from pathlib import Path
 
+import httpx
 from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -113,24 +114,38 @@ def confirm(request: Request, what: str = Form(...)):
 
 @app.post("/webhook/paypal")
 def webhook(request: Request, event_type: str = Form(...), resource_id: str = Form(...)):
-    """PayPal webhook (sandbox) or the mock buttons. INVOICING.INVOICE.PAID marks the invoice paid;
-    CHECKOUT.ORDER.APPROVED lets us capture. Signature verification is a sandbox-mode TODO (see README)."""
+    """PayPal webhook (sandbox) or the mock buttons. The event body is never trusted on its own:
+    for an invoice we re-read its status from PayPal before writing a receipt; for an order the
+    capture call is the proof (PayPal refuses to capture an order nobody approved). In mock mode the
+    caller may only settle the invoice/order of its own session (cookie), so one tab cannot mark
+    another tab's invoice paid. Webhook signature verification (verify-webhook-signature) is a
+    sandbox-mode TODO in the README; until then do not expose the sandbox mode to the internet."""
+    sid = _sid(request); mine = _state(sid)
     if event_type == "INVOICING.INVOICE.PAID":
         if paypal.is_mock():
+            if mine.get("invoice_id") != resource_id:
+                raise HTTPException(403, "mock payer may only settle this session's invoice")
             pp.settle_invoice(resource_id)
-        inv = pp.get_invoice(resource_id)
+        inv = pp.get_invoice(resource_id)                 # sandbox: status comes from PayPal, not the caller
+        if inv.status != "PAID":
+            return {"ok": False, "status": inv.status}
         for st in SESSIONS.values():
-            if st.get("invoice_id") == inv.id and inv.status == "PAID":
+            if st.get("invoice_id") == inv.id and not st.get("receipt"):
                 q = st["quote"]
                 st["receipt"] = agent.receipt(q, inv.amount, inv.id)
                 st["log"].append(("till", st["receipt"]))
         return {"ok": True, "status": inv.status}
     if event_type == "CHECKOUT.ORDER.APPROVED":
         if paypal.is_mock():
+            if mine.get("order_id") != resource_id:
+                raise HTTPException(403, "mock donor may only approve this session's order")
             pp.approve_order(resource_id)
-        o = pp.capture_order(resource_id)
+        try:
+            o = pp.capture_order(resource_id)              # PayPal refuses unless the payer approved
+        except (ValueError, httpx.HTTPStatusError) as e:
+            raise HTTPException(409, f"order not capturable: {e}") from e
         for st in SESSIONS.values():
-            if st.get("order_id") == o.id:
+            if st.get("order_id") == o.id and not st.get("thanks"):
                 st["thanks"] = f"Captured ${o.amount} (PayPal {o.id}). That covers {o.amount // 50} sliding-scale gaps of $50, or most of one laptop."
                 st["log"].append(("till", st["thanks"]))
         return {"ok": True, "status": o.status}
