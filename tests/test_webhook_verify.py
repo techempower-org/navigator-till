@@ -74,9 +74,9 @@ def sandbox(monkeypatch):
     inv = paypal.Invoice(id="INV2-SB-1", status="SENT", recipient_email="pat@example.test", amount=q.price,
                          currency="USD", memo="laptop", link="https://sandbox.paypal.com/i/INV2-SB-1")
     sb.invoices[inv.id] = inv
-    appmod.SESSIONS["sb-session"] = {"log": [], "quote": q, "invoice_id": inv.id}
+    appmod.store.put("sb-session", {"log": [], "quote": q, "invoice_id": inv.id})
     yield sb
-    appmod.SESSIONS.pop("sb-session", None)
+    appmod.store.delete("sb-session")
 
 
 EVENT = {"id": "WH-EVT-1", "event_type": "INVOICING.INVOICE.PAID", "resource": {"invoice": {"id": "INV2-SB-1", "status": "PAID"}}}
@@ -86,7 +86,7 @@ def test_sandbox_json_event_verified_writes_receipt(monkeypatch, sandbox):
     _fake_http(monkeypatch, verdict="SUCCESS")
     r = TestClient(app).post("/webhook/paypal", json=EVENT, headers=HEADERS)
     assert r.status_code == 200 and r.json() == {"ok": True, "status": "PAID"}
-    assert appmod.SESSIONS["sb-session"]["receipt"].startswith("Paid: $50")
+    assert appmod.store.get("sb-session")["receipt"].startswith("Paid: $50")
 
 
 def test_sandbox_rejects_bad_signature_form_path_and_missing_webhook_id(monkeypatch, sandbox):
@@ -98,7 +98,7 @@ def test_sandbox_rejects_bad_signature_form_path_and_missing_webhook_id(monkeypa
     assert c.post("/webhook/paypal", json=EVENT).status_code == 403                 # no transmission headers
     monkeypatch.delenv("PAYPAL_WEBHOOK_ID")
     assert c.post("/webhook/paypal", json=EVENT, headers=HEADERS).status_code == 403
-    assert "receipt" not in appmod.SESSIONS["sb-session"]
+    assert "receipt" not in appmod.store.get("sb-session")
 
 
 def test_mock_mode_accepts_json_event_for_own_session():
