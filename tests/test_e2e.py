@@ -65,3 +65,25 @@ def test_nothing_is_charged_without_yes():
 
 def test_healthz():
     assert TestClient(app).get("/healthz").json()["mock"] is True
+
+
+def test_another_session_cannot_settle_my_invoice():
+    me = TestClient(app)
+    r = me.post("/chat", data={"message": "laptop, there are 3 of us and we make about $28,000 a year"})
+    r = me.post("/confirm", data={"what": "device"})
+    iid = "INV2-MOCK-" + r.text.split("INV2-MOCK-")[1].split("<")[0]
+    stranger = TestClient(app)
+    r = stranger.post("/webhook/paypal", data={"event_type": "INVOICING.INVOICE.PAID", "resource_id": iid})
+    assert r.status_code == 403
+    from navigator_till.app import pp
+    assert pp.get_invoice(iid).status == "SENT"              # untouched
+    assert me.post("/webhook/paypal", data={"event_type": "INVOICING.INVOICE.PAID", "resource_id": iid}).json()["status"] == "PAID"
+
+
+def test_unapproved_order_cannot_be_captured_by_a_stranger():
+    me = TestClient(app)
+    me.post("/chat", data={"message": "I want to cover a laptop for someone, $40"})
+    r = me.post("/confirm", data={"what": "donation"})
+    oid = "ORD-MOCK-" + r.text.split("ORD-MOCK-")[1].split("<")[0]
+    assert TestClient(app).post("/webhook/paypal", data={"event_type": "CHECKOUT.ORDER.APPROVED", "resource_id": oid}).status_code == 403
+
