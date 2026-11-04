@@ -7,6 +7,7 @@ No money step happens without the YES button; the agent only ever proposes.
 """
 from __future__ import annotations
 
+import json
 import os
 import secrets
 from pathlib import Path
@@ -15,6 +16,7 @@ import httpx
 from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from starlette.concurrency import run_in_threadpool
 
 from . import agent, paypal, pricing
 
@@ -113,13 +115,35 @@ def confirm(request: Request, what: str = Form(...)):
 
 
 @app.post("/webhook/paypal")
-def webhook(request: Request, event_type: str = Form(...), resource_id: str = Form(...)):
-    """PayPal webhook (sandbox) or the mock buttons. The event body is never trusted on its own:
-    for an invoice we re-read its status from PayPal before writing a receipt; for an order the
-    capture call is the proof (PayPal refuses to capture an order nobody approved). In mock mode the
-    caller may only settle the invoice/order of its own session (cookie), so one tab cannot mark
-    another tab's invoice paid. Webhook signature verification (verify-webhook-signature) is a
-    sandbox-mode TODO in the README; until then do not expose the sandbox mode to the internet."""
+async def webhook(request: Request):
+    """PayPal webhook (sandbox) or the mock buttons. Two shapes: PayPal's JSON event (event_type +
+    resource) or the mock form (event_type + resource_id). In sandbox mode every delivery must pass
+    PayPal's verify-webhook-signature for PAYPAL_WEBHOOK_ID, else 403; the mock form path is never
+    accepted there. The event body is never trusted on its own even when verified: for an invoice we
+    re-read its status from PayPal before writing a receipt; for an order the capture call is the
+    proof (PayPal refuses to capture an order nobody approved). In mock mode the caller may only
+    settle the invoice/order of its own session (cookie), so one tab cannot mark another's paid."""
+    if request.headers.get("content-type", "").startswith("application/json"):
+        body = await request.body()
+        try:
+            event = json.loads(body)
+        except ValueError:
+            raise HTTPException(400, "invalid JSON event")
+        res = event.get("resource") or {}
+        event_type, resource_id, is_form = event.get("event_type", ""), (res.get("invoice") or {}).get("id") or res.get("id") or "", False
+    else:
+        form = await request.form()
+        body, event_type, resource_id, is_form = b"", str(form.get("event_type", "")), str(form.get("resource_id", "")), True
+    if not event_type or not resource_id:
+        raise HTTPException(400, "event_type and a resource id are required")
+    return await run_in_threadpool(_settle, request, event_type, resource_id, body, is_form)
+
+
+def _settle(request: Request, event_type: str, resource_id: str, body: bytes, is_form: bool):
+    if not paypal.is_mock():
+        webhook_id = os.environ.get("PAYPAL_WEBHOOK_ID", "")
+        if is_form or not webhook_id or not paypal.verify_webhook(request.headers, body, webhook_id, client=pp):
+            raise HTTPException(403, "webhook signature not verified")
     sid = _sid(request); mine = _state(sid)
     if event_type == "INVOICING.INVOICE.PAID":
         if paypal.is_mock():

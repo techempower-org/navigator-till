@@ -8,6 +8,7 @@ Money moves only after a human confirmation in app.py; this module never decides
 from __future__ import annotations
 
 import base64
+import json
 import itertools
 import os
 import time
@@ -188,3 +189,35 @@ class SandboxPayPal:
 
 def client() -> MockPayPal | SandboxPayPal:
     return MockPayPal() if is_mock() else SandboxPayPal()
+
+
+# Webhook signature verification (sandbox and live share the same endpoint shape).
+TRANSMISSION_HEADERS = ("paypal-transmission-id", "paypal-transmission-time", "paypal-transmission-sig",
+                        "paypal-cert-url", "paypal-auth-algo")
+
+
+def verify_webhook(headers, body: bytes | str, webhook_id: str, *, client: "SandboxPayPal | None" = None) -> bool:
+    """True only when PayPal answers verification_status == "SUCCESS" for this delivery.
+
+    `headers` is any case-insensitive mapping (Starlette's request.headers works); `body` is the
+    raw event body exactly as received: it is spliced into the verify request untouched, because
+    PayPal signs the bytes it sent, not a re-serialised copy. Missing headers, an empty webhook id,
+    or any transport error count as not verified."""
+    if not webhook_id:
+        return False
+    h = {k: headers.get(k) or headers.get(k.upper()) for k in TRANSMISSION_HEADERS}
+    if not all(h.values()):
+        return False
+    raw = body.decode() if isinstance(body, bytes) else body
+    meta = {"auth_algo": h["paypal-auth-algo"], "cert_url": h["paypal-cert-url"],
+            "transmission_id": h["paypal-transmission-id"], "transmission_sig": h["paypal-transmission-sig"],
+            "transmission_time": h["paypal-transmission-time"], "webhook_id": webhook_id}
+    payload = json.dumps(meta)[:-1] + ', "webhook_event": ' + raw + "}"
+    pp = client or SandboxPayPal()
+    try:
+        r = httpx.post(f"{pp.base}/v1/notifications/verify-webhook-signature", headers=pp._h(),
+                       content=payload.encode(), timeout=20)
+        r.raise_for_status()
+        return r.json().get("verification_status") == "SUCCESS"
+    except (httpx.HTTPError, ValueError, KeyError):
+        return False
