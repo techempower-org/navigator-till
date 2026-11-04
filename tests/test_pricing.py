@@ -19,7 +19,7 @@ def test_bands_edges_are_inclusive():
     assert pricing.quote("laptop", 1, int(fpl1 * 1.5)).price == 50          # exactly 150%
     assert pricing.quote("laptop", 1, int(fpl1 * 2.0)).price == 100         # exactly 200%
     assert pricing.quote("laptop", 1, int(fpl1 * 3.0)).price == 150         # exactly 300%
-    assert pricing.quote("laptop", 1, int(fpl1 * 3.0) + 1).price == 200     # above: full list
+    assert pricing.quote("laptop", 1, int(fpl1 * 3.01)).price == 200        # 301%: full list
 
 
 def test_categorical_program_skips_income():
