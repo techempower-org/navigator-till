@@ -83,3 +83,7 @@ tests/                        pricing edges, mock lifecycles, end-to-end loops, 
 ## License
 
 MIT. Clinics and nonprofits: run your own copy and edit `pricing.yaml`.
+
+## Container
+
+`docker build -t navigator-till .` then `docker run -p 8077:8077 -v till-data:/data navigator-till` (mock mode). For the sandbox: `-e MOCK=0 -e PAYPAL_CLIENT_ID=… -e PAYPAL_SECRET=… -e PAYPAL_WEBHOOK_ID=… -e NT_DESK_TOKEN=…` (an env file, never argv in production). The image listens on `PORT` (8077), keeps the SQLite store under `/data` (bind-mount or volume), runs as nobody, and answers `GET /healthz` with `{"ok": true, "mock": …, "version": …}` and no secrets. Builds on amd64 and arm64.
