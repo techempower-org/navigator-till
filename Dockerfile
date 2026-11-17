@@ -3,6 +3,10 @@
 # NT_DB (default /data/navigator-till.db here; bind-mount /data), NT_DB_RETENTION_DAYS, NT_DESK_TOKEN,
 # ANTHROPIC_API_KEY + NT_MODEL (offline parser/templates without them), NT_ORG, NT_ORG_EMAIL, NT_PRICING.
 FROM python:3.12-slim
+# The build stamp for /api/version: the image is built from a source tarball (no .git), so the builder passes the
+# commit (realm-cloud bin/till-up build: --build-arg SIGIL_HASH=<short sha>). Unset or junk reads "dev".
+ARG SIGIL_HASH=dev
+ENV SIGIL_HASH=${SIGIL_HASH}
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 \
     NT_DB=/data/navigator-till.db MOCK=1 PORT=8077
 WORKDIR /app

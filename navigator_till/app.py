@@ -10,13 +10,15 @@ from __future__ import annotations
 import hmac
 import json
 import os
+import re
 import secrets
+import time
 from datetime import date, datetime
 from pathlib import Path
 
 import httpx
 from fastapi import FastAPI, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from starlette.concurrency import run_in_threadpool
 
@@ -249,6 +251,21 @@ def desk(request: Request):
 def reset(request: Request):
     store.delete(request.cookies.get("nt_sid", ""))
     return RedirectResponse("/", status_code=303)
+
+
+_STARTED = time.time()
+
+
+@app.get("/api/version")
+def api_version():
+    """realm-sigil contract (JP 2026-11-17: every web project in status carries the sigil). Names the build only."""
+    from realm_sigil import version_dict
+    h = os.environ.get("SIGIL_HASH", "").strip().lower()
+    h = h[:12] if re.fullmatch(r"[0-9a-f]{7,40}", h) else "dev"
+    return JSONResponse(version_dict(
+        "navigator-till", "Navigator Till", "forge", "https://github.com/techempower-org/navigator-till",
+        hash=h, dirty=(h == "dev"), started=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(_STARTED)),
+        uptime=int(time.time() - _STARTED)), headers={"Cache-Control": "no-store"})
 
 
 @app.get("/healthz")

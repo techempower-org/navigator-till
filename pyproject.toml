@@ -12,6 +12,9 @@ dependencies = [
   "pyyaml>=6.0",
   "httpx>=0.27",
   "python-multipart>=0.0.9",
+  # realm-sigil: the /api/version contract (status.realm.watch CHECK sigil-coverage, 2026-11-17); an archive URL so the
+  # slim image needs no git
+  "sigil.realm.watch @ https://github.com/jphein/sigil.realm.watch/archive/4693abbf23db8f3607d471844874ea95e0b169ac.tar.gz#subdirectory=python",
 ]
 
 [project.optional-dependencies]
