@@ -46,7 +46,7 @@ def test_desk_lists_quotes_unpaid_pickups_and_donations(fresh):
     u = _section(html, "Unpaid invoices")
     assert "a@example.test" in u and "$50" in u and "b@example.test" not in u
     p = _section(html, "Paid pickups")
-    assert "b@example.test" in p and iid in p and "no charge" in p and "$90" in p   # desktop $180, 2 people at 174%: 50%
+    assert "b@example.test" in p and iid in p and "no charge" in p and "$110" in p   # desktop $220, 2 people at 174%: 50%
     assert oid in _section(html, "Donations captured") and "$100" in _section(html, "Donations captured")
     assert "Vista del navegador" in TestClient(app).get("/desk?lang=es").text
 

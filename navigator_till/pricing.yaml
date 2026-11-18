@@ -1,5 +1,6 @@
 # Navigator Till sliding scale. The org edits this file; the code only does the arithmetic.
-# Example numbers from TechEMPOWER's 2026 refurbished-device offer sheet (desktop $180, laptop $200/$280).
+# Numbers from TechEMPOWER's 2026 refurbished-device offer sheet (laptop $200 / $280; desktop $220 with keyboard, mouse
+# and one monitor, each additional monitor $40; JP 2026-11-17: no cases, no third tier).
 # Income bands are percent of the 2026 federal poverty guideline for the household size; the band's
 # "pay" is the share of list price the client pays. Never computed by a language model.
 
@@ -13,8 +14,8 @@ devices:
     label: Refurbished laptop (newer, more memory)
     list: 280
   desktop:
-    label: Refurbished desktop with monitor
-    list: 180
+    label: Refurbished desktop with keyboard, mouse and one monitor
+    list: 220
   ups:
     label: Battery backup (as-is)
     list: 70
