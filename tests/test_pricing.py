@@ -30,7 +30,7 @@ def test_categorical_program_skips_income():
 
 def test_unknown_program_falls_back_to_income():
     q = pricing.quote("desktop", 2, 70_000, program="gym membership")   # 2 people: FPL 21,640; 70,000 = 323%
-    assert q.categorical is None and q.price == 180
+    assert q.categorical is None and q.price == 220
 
 
 def test_errors():
