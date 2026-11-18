@@ -128,6 +128,7 @@ LABELS = {
     "es": {
         "Refurbished laptop": "Laptop reacondicionada",
         "Refurbished laptop (newer, more memory)": "Laptop reacondicionada (más nueva, más memoria)",
+        "Refurbished desktop with monitor": "Computadora de escritorio reacondicionada con monitor",   # quotes saved before 2026-11-17 keep this label
         "Refurbished desktop with keyboard, mouse and one monitor": "Computadora de escritorio reacondicionada con teclado, ratón y un monitor",
         "Battery backup (as-is)": "Batería de respaldo (tal cual)",
         "at or below the poverty line": "en la línea de pobreza o por debajo",
